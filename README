@@ -1,0 +1,110 @@
+Project : CH341A relay board, simple control from PC or Raspberry PI
+Using Inotify : Create file: turn relay on
+
+Using just plain linux and libusb-1.0 control the relays
+This document was written by Edwin van den Oetelaar, please leave my name intact.
+
+Building the software:
+- have gcc/make etc installed
+- run make
+- done
+
+Connect the board using a usb cable.
+Make sure you have enough rights to control the USB device 
+(see if it is present with lsusb command)
+$ lsusb
+Bus 002 Device 024: ID 1a86:5512 QinHeng Electronics 
+
+If you need to run the board as a normal user you need to a a rule to udev to allow it
+My group was 'oetelaar' make sure you set up your group correctly, not my group name!! 
+
+$ cat /etc/udev/rules.d/60-OETEL-IOSOLUTION-ABACOM.rules
+# start of file 
+    ACTION!="add|change", GOTO="isp_rules_end"
+    SUBSYSTEM!="usb", GOTO="isp_rules_end"
+    ENV{DEVTYPE}!="usb_device", GOTO="isp_rules_end"
+
+    # de IOsolution USB board
+    # Bus 002 Device 006: ID 07a0:1008
+    # no longer sold
+    ATTR{idVendor}=="07a0", ATTR{idProduct}=="1008", MODE="660", GROUP="oetelaar"
+
+    # new device, ABACOM relay board based on CH341A chip in MEM mode
+    ATTR{idVendor}=="1a86", ATTR{idProduct}=="5512", MODE="660", GROUP="oetelaar"
+
+    LABEL="isp_rules_end"
+# end of file
+
+Usage Examples: 
+run as root if you do not have udev set up correctly
+
+$ sudo ./switch_relay 1 2
+
+$ switch relay 1 and 8 on, rest is off (and as normal user)
+$ ./switch_relay 1 8 
+
+=== detailed usage ===
+Name : switch_relay - switch relays on Abacom or Elomax board on or off
+Can be run once, to set some relays or
+can run as a directory monitor using inotify, will switch relays when files are created or removed
+
+switch_relay [options] [relay_number] [relay_number]
+options:
+ -s : use syslog for logging instead of stderr
+ -d : keep running (as a daemon) does not fork (use something like supervisord)
+ -i <directory_name> : use event listing on this directory instead of /tmp
+ -h : show help text
+ -m <0|1> : use Abacom=0 (default) or Elmax=1 protocol and device
+ -z loglevel : set loglevel (default=7) valid levels : ERR = 1, WARN =2, NOTICE=4, INFO=8, DEBUG=16 OR together
+
+
+Usage example:
+ $ switch_relay  : switch all relays off
+ $ switch_relay 4 : switch all relays off, but switch relay 4 on
+ $ switch_relay -s -d -z 31 : use syslog, keep running, use maximum logging
+
+When using (-d) the program will monitor /tmp/ for creation or removal of files
+ /tmp/D_OUT_1 /tmp/D_OUT_2 .. /tmp_D_OUT_8
+ create a file with that name and the output will be active (on) remove the file and the output will deactivate (off)
+
+example :
+ $ touch /tmp/D_OUT_1 : will active relay no 1
+ $ rm /tmp/D_OUT_1    : will switch relay off again
+
+
+
+Board can be bought here:
+http://www.electronic-software-shop.com/hardware/relais/usb-relaiskarte-lrb-8-fach.html
+
+Pro: not expensive, ships in couple of days.
+
+Cons: 
+- small relays, 
+- no LED when board has power (bad!) 
+- or LED when Relay actived   (bad!)
+- no way to see what is happening
+- The software is old windows DLL only (bad!) 
+- no documentation on how it works, no schematic. (bad!)
+- no way to read the actual state of the registers on the board (not yet)
+
+More info about the chip used:
+http://hackingbtbusinesshub.wordpress.com/category/ch341a/
+http://www.winchiphead.com/download/CH341/CH341DS1.PDF
+http://www.winchiphead.com/download/CH341/CH341DS2.PDF
+Use google translate to read it, it is in Chinese.
+
+The relay board works in MEM mode of the chip.
+The data is shifted into the register bit by bit, clock by clock using a (too) complex USB protocol
+The data is moved into a shift register which looks like this A6275EA
+I found a datasheet here: http://www.jameco.com/Jameco/Products/ProdDS/1719228.pdf
+
+In theory multiple shift registers could be cascoded to form a very long register with many outputs.
+
+Hope this helps someone, 
+If something is wrong or missing, sorry no garanties by me, I am just a guy sharing his findings.
+
+Greetings,
+Edwin van den Oetelaar
+
+PS,NB. be careful, make sure failure of the software or board can not result in harm to anyone!!
+
